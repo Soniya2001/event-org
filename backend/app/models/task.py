@@ -1,0 +1,23 @@
+import datetime
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text
+from sqlalchemy.orm import relationship
+from app.database import Base
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(Integer, ForeignKey("events.id"), nullable=False, index=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+    category = Column(String(100), default="General")
+    start_date = Column(String(50), nullable=True)
+    due_date = Column(String(50), nullable=False)
+    priority = Column(String(50), default="MEDIUM", nullable=False)  # LOW, MEDIUM, HIGH, URGENT
+    status = Column(String(50), default="PENDING", nullable=False)   # PENDING, IN_PROGRESS, COMPLETED
+    completed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    # Relationships
+    event = relationship("Event", back_populates="tasks")
+
