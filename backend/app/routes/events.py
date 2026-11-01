@@ -12,17 +12,19 @@ router = APIRouter(prefix="/events", tags=["Events"])
 @router.get("/", response_model=List[EventResponse])
 def get_user_events(
     status_filter: Optional[str] = Query(None, alias="status", description="Filter events by status (Planning, Upcoming, Completed)"),
+    skip: int = Query(0, ge=0, description="Number of events to skip (pagination offset)"),
+    limit: int = Query(50, ge=1, le=100, description="Maximum number of events to return"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Retrieve all events owned by the authenticated user.
-    Supports optional status filtering and orders events by latest creation date.
+    Supports optional status filtering and pagination. Ordered by creation date descending.
     """
     query = db.query(Event).filter(Event.user_id == current_user.id)
     if status_filter:
         query = query.filter(Event.status.ilike(f"%{status_filter}%"))
-    return query.order_by(Event.created_at.desc()).all()
+    return query.order_by(Event.created_at.desc()).offset(skip).limit(limit).all()
 
 @router.post("/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
 def create_event(

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -20,14 +20,18 @@ def get_verified_event(event_id: int, user: User, db: Session) -> Event:
 @router.get("/{event_id}", response_model=List[VendorResponse])
 def get_event_vendors(
     event_id: int,
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(100, ge=1, le=200, description="Pagination limit"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve all procurement contracts, status tracking, and quotations for an event.
+    Retrieve all procurement contracts, status tracking, and quotations for an event with pagination.
     """
     event = get_verified_event(event_id, current_user, db)
-    return db.query(Vendor).filter(Vendor.event_id == event.id).order_by(Vendor.category.asc()).all()
+    return db.query(Vendor).filter(Vendor.event_id == event.id).order_by(
+        Vendor.category.asc()
+    ).offset(skip).limit(limit).all()
 
 @router.post("/{event_id}", response_model=VendorResponse, status_code=status.HTTP_201_CREATED)
 def create_vendor(

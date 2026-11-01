@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List
 from app.database import get_db
@@ -21,14 +21,18 @@ def get_verified_event(event_id: int, user: User, db: Session) -> Event:
 @router.get("/{event_id}", response_model=List[ExpenseResponse])
 def get_event_expenses(
     event_id: int,
+    skip: int = Query(0, ge=0, description="Pagination offset"),
+    limit: int = Query(100, ge=1, le=200, description="Pagination limit"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    Retrieve all actual recorded transactions and receipts for an event, ordered by date descending.
+    Retrieve all actual recorded transactions and receipts for an event with pagination, ordered by date descending.
     """
     event = get_verified_event(event_id, current_user, db)
-    return db.query(Expense).filter(Expense.event_id == event.id).order_by(Expense.expense_date.desc(), Expense.id.desc()).all()
+    return db.query(Expense).filter(Expense.event_id == event.id).order_by(
+        Expense.expense_date.desc(), Expense.id.desc()
+    ).offset(skip).limit(limit).all()
 
 @router.post("/{event_id}", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
 def create_expense(
