@@ -5,6 +5,13 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 from app.main import app
 from app.database import Base, get_db
+from app.config import settings
+from app.services.gemini_service import gemini_client
+
+# Ensure fast, deterministic, offline test runs without external API latency
+settings.GEMINI_API_KEY = ""
+gemini_client.client = None
+gemini_client.api_key = ""
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///:memory:"
 
@@ -38,8 +45,8 @@ def client(db_session):
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
-        yield c
+    c = TestClient(app)
+    yield c
     app.dependency_overrides.clear()
 
 @pytest.fixture(scope="function")

@@ -11,6 +11,7 @@ from app.utils.dependencies import get_current_user
 router = APIRouter(prefix="/vendors", tags=["Vendors"])
 
 def get_verified_event(event_id: int, user: User, db: Session) -> Event:
+    """Helper verifying event existence and ownership."""
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found or access denied")
@@ -22,6 +23,9 @@ def get_event_vendors(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Retrieve all procurement contracts, status tracking, and quotations for an event.
+    """
     event = get_verified_event(event_id, current_user, db)
     return db.query(Vendor).filter(Vendor.event_id == event.id).order_by(Vendor.category.asc()).all()
 
@@ -32,6 +36,9 @@ def create_vendor(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Register a vendor candidate or booked supplier with quotes and booking milestones.
+    """
     event = get_verified_event(event_id, current_user, db)
     new_vendor = Vendor(
         event_id=event.id,
@@ -59,10 +66,13 @@ def update_vendor(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Update vendor contract parameters, agreed quotations, booking status, or payment status.
+    """
     event = get_verified_event(event_id, current_user, db)
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.event_id == event.id).first()
     if not vendor:
-        raise HTTPException(status_code=404, detail="Vendor not found")
+        raise HTTPException(status_code=404, detail="Vendor record not found")
 
     update_data = vendor_update.model_dump(exclude_unset=True)
     for field, val in update_data.items():
@@ -79,12 +89,14 @@ def delete_vendor(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Delete a vendor entry from the event procurement checklist.
+    """
     event = get_verified_event(event_id, current_user, db)
     vendor = db.query(Vendor).filter(Vendor.id == vendor_id, Vendor.event_id == event.id).first()
     if not vendor:
-        raise HTTPException(status_code=404, detail="Vendor not found")
+        raise HTTPException(status_code=404, detail="Vendor record not found")
 
     db.delete(vendor)
     db.commit()
     return None
-

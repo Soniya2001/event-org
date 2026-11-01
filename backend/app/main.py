@@ -1,12 +1,16 @@
 import os
 import logging
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
 from app.config import settings
 from app.database import engine, Base
 from app.routes import auth, events, budgets, expenses, tasks, vendors, ai
+from app.utils.security_middleware import SecurityHeadersMiddleware
+from app.utils.rate_limiter import RateLimitMiddleware
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -21,14 +25,48 @@ app = FastAPI(
     description="Full-stack AI-powered luxury & enterprise event planning platform."
 )
 
-# CORS setup
+# 1. Performance: GZip Compression Middleware (Compresses responses >= 1000 bytes)
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# 2. Security: OWASP Security Headers & Process Time Tracing Middleware
+app.add_middleware(SecurityHeadersMiddleware)
+
+# 3. Security: Sliding Window Rate Limiting Middleware
+app.add_middleware(RateLimitMiddleware, max_requests=150, window_seconds=60)
+
+# 4. CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+# Global Standardized Error Handling
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={
+            "success": False,
+            "error_type": "ValidationError",
+            "message": "Invalid request parameters provided.",
+            "details": exc.errors()
+        }
+    )
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    logger.error(f"Unhandled exception during {request.method} {request.url.path}: {exc}", exc_info=True)
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={
+            "success": False,
+            "error_type": "InternalServerError",
+            "message": "An unexpected error occurred. Please contact support or retry."
+        }
+    )
 
 # Include API Routers under /api/v1
 api_prefix = settings.API_V1_STR
@@ -46,7 +84,10 @@ def health_check():
         "status": "healthy",
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "gemini_integration": "active" if bool(settings.GEMINI_API_KEY) else "smart_fallback_active"
+        "gemini_integration": "active" if bool(settings.GEMINI_API_KEY) else "smart_fallback_active",
+        "security_hardening": "active",
+        "rate_limiting": "enabled",
+        "compression": "gzip"
     }
 
 # Frontend static files mounting for single-container production deployment
@@ -68,7 +109,7 @@ if frontend_dist:
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
-        # Don't intercept API routes or health
+        # Don't intercept API routes, health, or docs
         if full_path.startswith("api/") or full_path == "health" or full_path.startswith("docs") or full_path.startswith("openapi.json"):
             return None
         file_path = os.path.join(frontend_dist, full_path)

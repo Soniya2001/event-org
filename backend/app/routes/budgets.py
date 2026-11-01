@@ -12,6 +12,7 @@ from app.utils.business_logic import calculate_budget_reconciliation
 router = APIRouter(prefix="/budgets", tags=["Budgets"])
 
 def get_verified_event(event_id: int, user: User, db: Session) -> Event:
+    """Helper verifying event existence and ownership."""
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found or access denied")
@@ -23,6 +24,10 @@ def get_event_budget(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Retrieve comprehensive financial health overview for an event.
+    Calculates total allocated, estimated, actual expenses, remaining balance, and over-budget status.
+    """
     event = get_verified_event(event_id, current_user, db)
     reconciled = calculate_budget_reconciliation(event, db)
     return reconciled
@@ -34,9 +39,12 @@ def add_budget_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Add a customized budget envelope (e.g. Venue, Catering, Audio/Visual).
+    Automatically calculates percentage against total allocated event funds.
+    """
     event = get_verified_event(event_id, current_user, db)
     
-    # Calculate percentage based on total event budget
     percentage = 0.0
     if event.total_budget > 0:
         percentage = round((budget_in.allocated_amount / event.total_budget) * 100, 2)
@@ -65,6 +73,9 @@ def update_budget_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Update budget allocation or cost projections and trigger real-time financial recalculation.
+    """
     event = get_verified_event(event_id, current_user, db)
     budget = db.query(Budget).filter(Budget.id == budget_id, Budget.event_id == event.id).first()
     if not budget:
@@ -89,6 +100,9 @@ def delete_budget_category(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Remove a budget line item and rebalance the event financial summary.
+    """
     event = get_verified_event(event_id, current_user, db)
     budget = db.query(Budget).filter(Budget.id == budget_id, Budget.event_id == event.id).first()
     if not budget:
@@ -98,4 +112,3 @@ def delete_budget_category(
     db.commit()
     calculate_budget_reconciliation(event, db)
     return None
-

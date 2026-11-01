@@ -13,6 +13,7 @@ from app.utils.business_logic import recalculate_event_progress
 router = APIRouter(prefix="/tasks", tags=["Tasks"])
 
 def get_verified_event(event_id: int, user: User, db: Session) -> Event:
+    """Helper verifying event existence and ownership."""
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found or access denied")
@@ -21,11 +22,15 @@ def get_verified_event(event_id: int, user: User, db: Session) -> Event:
 @router.get("/{event_id}", response_model=List[TaskResponse])
 def get_event_tasks(
     event_id: int,
-    status_filter: Optional[str] = Query(None, alias="status"),
-    priority_filter: Optional[str] = Query(None, alias="priority"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter tasks by status (PENDING, IN_PROGRESS, COMPLETED)"),
+    priority_filter: Optional[str] = Query(None, alias="priority", description="Filter tasks by priority (LOW, MEDIUM, HIGH, URGENT)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Retrieve all tasks and milestones scheduled for an event.
+    Supports filtering by execution status and priority. Ordered chronologically by due date.
+    """
     event = get_verified_event(event_id, current_user, db)
     query = db.query(Task).filter(Task.event_id == event.id)
     if status_filter:
@@ -41,6 +46,9 @@ def create_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Create a new milestone checklist item and recalculate overall event completion progress.
+    """
     event = get_verified_event(event_id, current_user, db)
     new_task = Task(
         event_id=event.id,
@@ -66,6 +74,10 @@ def update_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Update task details or mark task as COMPLETED. Automatically timestamps completion date
+    and dynamically recalculates the event planning progress percentage.
+    """
     event = get_verified_event(event_id, current_user, db)
     task = db.query(Task).filter(Task.id == task_id, Task.event_id == event.id).first()
     if not task:
@@ -93,6 +105,9 @@ def delete_task(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Delete a milestone task and recalculate the remaining completion progress.
+    """
     event = get_verified_event(event_id, current_user, db)
     task = db.query(Task).filter(Task.id == task_id, Task.event_id == event.id).first()
     if not task:
@@ -102,4 +117,3 @@ def delete_task(
     db.commit()
     recalculate_event_progress(event.id, db)
     return None
-

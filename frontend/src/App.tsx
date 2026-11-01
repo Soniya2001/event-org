@@ -45,7 +45,7 @@ const MainLayout: React.FC = () => {
       />
 
       {/* Main View Router */}
-      <main className="flex-1">
+      <main id="main-content" tabIndex={-1} role="main" className="flex-1 focus:outline-none">
         
         {/* Landing Page */}
         {currentView === 'landing' && (

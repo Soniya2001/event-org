@@ -48,6 +48,9 @@ export const Modal: React.FC<ModalProps> = ({
 
           {/* Modal Container */}
           <motion.div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={title ? "modal-title" : undefined}
             initial={{ scale: 0.95, opacity: 0, y: 15 }}
             animate={{ scale: 1, opacity: 1, y: 0 }}
             exit={{ scale: 0.95, opacity: 0, y: 15 }}
@@ -57,11 +60,12 @@ export const Modal: React.FC<ModalProps> = ({
             {(title || subtitle) && (
               <div className="px-6 py-5 border-b border-purple-50 flex items-center justify-between bg-gradient-to-r from-purple-50/50 via-white to-white">
                 <div>
-                  {title && <h3 className="text-xl font-bold text-slate-800 font-serif">{title}</h3>}
+                  {title && <h3 id="modal-title" className="text-xl font-bold text-slate-800 font-serif">{title}</h3>}
                   {subtitle && <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>}
                 </div>
                 <button
                   onClick={onClose}
+                  aria-label="Close modal dialog"
                   className="p-2 text-slate-400 hover:text-slate-700 hover:bg-purple-100/50 rounded-full transition-colors"
                 >
                   <X className="w-5 h-5" />

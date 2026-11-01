@@ -11,10 +11,14 @@ router = APIRouter(prefix="/events", tags=["Events"])
 
 @router.get("/", response_model=List[EventResponse])
 def get_user_events(
-    status_filter: Optional[str] = Query(None, alias="status"),
+    status_filter: Optional[str] = Query(None, alias="status", description="Filter events by status (Planning, Upcoming, Completed)"),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Retrieve all events owned by the authenticated user.
+    Supports optional status filtering and orders events by latest creation date.
+    """
     query = db.query(Event).filter(Event.user_id == current_user.id)
     if status_filter:
         query = query.filter(Event.status.ilike(f"%{status_filter}%"))
@@ -26,6 +30,10 @@ def create_event(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Create a new event record with user preferences, guest headcount, and target budget.
+    Initializes planning workflow at 10% progress.
+    """
     new_event = Event(
         user_id=current_user.id,
         event_name=event_in.event_name,
@@ -51,6 +59,10 @@ def get_event(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Retrieve detailed metadata and AI blueprint for a specific event.
+    Enforces strict tenant isolation preventing cross-account access.
+    """
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == current_user.id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found or access denied")
@@ -63,6 +75,9 @@ def update_event(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Update core event parameters such as guest count, budget, status, or preferences.
+    """
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == current_user.id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found or access denied")
@@ -81,6 +96,9 @@ def delete_event(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Permanently delete an event and all associated tasks, budgets, and expenses.
+    """
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == current_user.id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found or access denied")
@@ -88,4 +106,3 @@ def delete_event(
     db.delete(event)
     db.commit()
     return None
-

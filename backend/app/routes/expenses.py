@@ -12,6 +12,7 @@ from app.utils.business_logic import calculate_budget_reconciliation
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
 def get_verified_event(event_id: int, user: User, db: Session) -> Event:
+    """Helper verifying event existence and ownership."""
     event = db.query(Event).filter(Event.id == event_id, Event.user_id == user.id).first()
     if not event:
         raise HTTPException(status_code=404, detail="Event not found or access denied")
@@ -23,6 +24,9 @@ def get_event_expenses(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Retrieve all actual recorded transactions and receipts for an event, ordered by date descending.
+    """
     event = get_verified_event(event_id, current_user, db)
     return db.query(Expense).filter(Expense.event_id == event.id).order_by(Expense.expense_date.desc(), Expense.id.desc()).all()
 
@@ -33,6 +37,9 @@ def create_expense(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Record an actual vendor or logistical expense. Automatically updates budget ledger and remaining balance.
+    """
     event = get_verified_event(event_id, current_user, db)
     
     new_expense = Expense(
@@ -57,10 +64,13 @@ def update_expense(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Update expense receipt details and recalculate cumulative spending totals.
+    """
     event = get_verified_event(event_id, current_user, db)
     expense = db.query(Expense).filter(Expense.id == expense_id, Expense.event_id == event.id).first()
     if not expense:
-        raise HTTPException(status_code=404, detail="Expense not found")
+        raise HTTPException(status_code=404, detail="Expense record not found")
 
     update_data = expense_update.model_dump(exclude_unset=True)
     for field, val in update_data.items():
@@ -78,13 +88,15 @@ def delete_expense(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    """
+    Delete an expense item and return the funds to the remaining balance.
+    """
     event = get_verified_event(event_id, current_user, db)
     expense = db.query(Expense).filter(Expense.id == expense_id, Expense.event_id == event.id).first()
     if not expense:
-        raise HTTPException(status_code=404, detail="Expense not found")
+        raise HTTPException(status_code=404, detail="Expense record not found")
 
     db.delete(expense)
     db.commit()
     calculate_budget_reconciliation(event, db)
     return None
-

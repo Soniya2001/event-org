@@ -12,6 +12,7 @@ from app.schemas.auth import UserRegister, UserLogin, UserResponse, Token, UserP
 from app.utils.security import verify_password, get_password_hash, create_access_token
 from app.utils.dependencies import get_current_user
 from app.utils.business_logic import calculate_budget_reconciliation
+from app.utils.validators import validate_password_strength, sanitize_text
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -163,6 +164,17 @@ def seed_demo_data_if_needed(user: User, db: Session):
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user_data: UserRegister, db: Session = Depends(get_db)):
+    """
+    Register a new user account with enterprise password strength enforcement and XSS sanitization.
+    """
+    is_valid, msg = validate_password_strength(user_data.password)
+    if not is_valid:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=msg
+        )
+
+    clean_name = sanitize_text(user_data.name)
     existing = db.query(User).filter(User.email == user_data.email).first()
     if existing:
         raise HTTPException(
@@ -172,7 +184,7 @@ def register(user_data: UserRegister, db: Session = Depends(get_db)):
     
     hashed_pwd = get_password_hash(user_data.password)
     user = User(
-        name=user_data.name,
+        name=clean_name,
         email=user_data.email,
         password_hash=hashed_pwd,
         currency=user_data.currency or "USD"

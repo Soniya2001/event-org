@@ -12,6 +12,20 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  build: {
+    target: 'es2020',
+    chunkSizeWarningLimit: 600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-react': ['react', 'react-dom'],
+          'vendor-charts': ['recharts'],
+          'vendor-motion': ['framer-motion'],
+          'vendor-icons': ['lucide-react'],
+          'vendor-utils': ['axios'],
+        }
+      }
+    }
   }
 })
-
