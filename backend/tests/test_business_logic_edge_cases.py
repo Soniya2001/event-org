@@ -72,3 +72,4 @@ def test_task_progress_recalculation_lifecycle(db_session):
 
     db_session.refresh(event)
     assert event.status == "Completed"
+

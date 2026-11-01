@@ -32,3 +32,4 @@ def sanitize_text(text: str) -> str:
     # Strip control characters
     clean = "".join(ch for ch in clean if ch.isprintable() or ch in "\n\r\t")
     return clean.strip()
+

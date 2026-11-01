@@ -57,3 +57,4 @@ def test_demo_login_endpoint(client):
     events = events_res.json()
     assert len(events) >= 1
     assert "Jaipur" in events[0]["location"] or "Wedding" in events[0]["event_name"]
+

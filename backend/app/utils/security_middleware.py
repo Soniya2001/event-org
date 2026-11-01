@@ -1,46 +1,35 @@
 import time
 import uuid
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi import Request
 
-class SecurityHeadersMiddleware:
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """
-    High-performance pure ASGI Security Headers & Distributed Tracing Middleware.
-    OWASP Recommended Security Standards with zero thread-bridging overhead:
+    Applies OWASP Recommended Security Headers and Request Tracing:
     - X-Content-Type-Options: nosniff
     - X-Frame-Options: DENY
     - X-XSS-Protection: 1; mode=block
-    - Strict-Transport-Security: max-age=31536000; includeSubDomains
-    - Referrer-Policy: strict-origin-when-cross-origin
-    - Permissions-Policy: camera=(), microphone=(), geolocation=()
-    - X-Request-ID: Distributed tracing UUID
-    - X-Process-Time: High-resolution latency profiling
+    - Strict-Transport-Security
+    - Referrer-Policy
+    - X-Request-ID for distributed tracing
+    - X-Process-Time for performance observability
     """
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
+    async def dispatch(self, request: Request, call_next):
         request_id = str(uuid.uuid4())
+        request.state.request_id = request_id
         start_time = time.time()
 
-        async def send_wrapper(message):
-            if message["type"] == "http.response.start":
-                process_time = time.time() - start_time
-                headers = list(message.get("headers", []))
-                
-                headers.append((b"x-request-id", request_id.encode("latin-1")))
-                headers.append((b"x-process-time", f"{process_time:.4f}s".encode("latin-1")))
-                headers.append((b"x-content-type-options", b"nosniff"))
-                headers.append((b"x-frame-options", b"DENY"))
-                headers.append((b"x-xss-protection", b"1; mode=block"))
-                headers.append((b"strict-transport-security", b"max-age=31536000; includeSubDomains"))
-                headers.append((b"referrer-policy", b"strict-origin-when-cross-origin"))
-                headers.append((b"permissions-policy", b"camera=(), microphone=(), geolocation=()"))
-                
-                message["headers"] = headers
+        response = await call_next(request)
 
-            await send(message)
+        process_time = time.time() - start_time
+        response.headers["X-Request-ID"] = request_id
+        response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
 
-        await self.app(scope, receive, send_wrapper)
+        return response
+
